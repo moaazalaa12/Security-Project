@@ -931,31 +931,51 @@ class AESImageCipherApp(_BaseApp):
         except Exception:
             pass
 
+    
     def _on_file_dropped(self, event):
-        """Handle dropped files with safe Windows path parsing and validation."""
+        """Handle dropped files with robust path parsing."""
         self._on_drop_leave()
+
         if not event or not event.data:
             return
 
         raw_data = str(event.data).strip()
-        try:
-            # Normalize backslashes to forward slashes before splitlist to prevent Tcl escape sequence corruption
-            normalized = raw_data.replace("\\", "/")
-            raw_paths = list(self.tk.splitlist(normalized))
-            paths = [os.path.normpath(p.strip("{}'\"")) for p in raw_paths if p.strip()]
-        except Exception:
-            paths = [os.path.normpath(raw_data.strip("{}'\""))]
+        normalized = raw_data.replace("\\", "/")
 
-        valid_file, warning_note, error_msg = self.validate_dropped_files(paths, self.operation_mode)
+        # Handle a single existing path, including spaces
+        single_path = os.path.normpath(
+            normalized.strip("{}'\"")
+        )
+
+        if os.path.exists(single_path):
+            paths = [single_path]
+        else:
+            try:
+                raw_paths = list(self.tk.splitlist(normalized))
+                paths = [
+                    os.path.normpath(p.strip("{}'\""))
+                    for p in raw_paths if p.strip()
+                ]
+            except Exception:
+                paths = [single_path]
+
+        valid_file, warning_note, error_msg = (
+            self.validate_dropped_files(
+                paths, self.operation_mode
+            )
+        )
 
         if error_msg:
             self._set_status("Error", error_msg)
-            messagebox.showwarning("Drop Failed", error_msg, parent=self)
+            messagebox.showwarning(
+                "Drop Failed", error_msg, parent=self
+            )
             return
 
         if valid_file:
             if warning_note:
                 self._set_status("Ready", warning_note)
+
             self._load_image_from_path(valid_file)
 
     @classmethod
